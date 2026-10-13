@@ -12,34 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# [START cloudbuild]
+substitutions:
+  _COMMIT_SHA: 'v1.0'
+
 steps:
-# This step runs the unit tests on the app
-- name: 'python:3.7-slim'
-  id: Test
+# This step deploys the new version of our container image
+# in the hello-cloudbuild Kubernetes Engine cluster.
+- name: 'gcr.io/cloud-builders/kubectl'
+  id: Deploy
+  args:
+  - 'apply'
+  - '-f'
+  - 'kubernetes.yaml'
+  env:
+  - 'CLOUDSDK_COMPUTE_REGION=us-east4'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=hello-cloudbuild'
+
+# This step copies the applied manifest to the production branch
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Copy to production branch
   entrypoint: /bin/sh
   args:
-  - -c
-  - 'pip install flask && python test_app.py -v'
-
-# This step builds the container image.
-- name: 'gcr.io/cloud-builders/docker'
-  id: Build
-  args:
-  - 'build'
-  - '-t'
-  - 'us-east4-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:$SHORT_SHA'
-  - '.'
-
-# This step pushes the image to Artifact Registry
-# The PROJECT_ID and SHORT_SHA variables are automatically
-# replaced by Cloud Build.
-- name: 'gcr.io/cloud-builders/docker'
-  id: Push
-  args:
-  - 'push'
-  - 'us-east4-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:$SHORT_SHA'
-# [END cloudbuild]
+  - '-c'
+  - |
+    set -x && \
+    git clone -b production http://giteaadmin:GiteaPassword123@35.245.113.191:3000/giteaadmin/hello-cloudbuild-env.git prod_repo && \
+    cd prod_repo && \
+    git config user.email "student@qwiklabs.net" && \
+    git config user.name "Cloud Build" && \
+    cp ../kubernetes.yaml kubernetes.yaml && \
+    git add kubernetes.yaml && \
+    git commit -m "Deployed manifest from commit $_COMMIT_SHA" && \
+    git push origin production
 
 options:
   logging: CLOUD_LOGGING_ONLY
